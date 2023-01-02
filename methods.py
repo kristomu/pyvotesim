@@ -324,11 +324,17 @@ def exp_majority_gated_score(election, numcands):
 			if scored_candidate == other_candidate:
 				continue
 
-		combined_fpp = plur_scores[scored_candidate][0] + \
-			plur_scores[other_candidate][0]
+			combined_fpp = plur_scores[scored_candidate][0] + \
+				plur_scores[other_candidate][0]
 
-		if 2 * combined_fpp > numvoters:
-			scores[scored_candidate][0] += condmat[scored_candidate][other_candidate]
+			if 2 * combined_fpp > numvoters:
+				scores[scored_candidate][0] += \
+					condmat[scored_candidate][other_candidate]
+
+			# A tie for the quota gives half score consistent with Heaviside
+			if 2 * combined_fpp == numvoters:
+				scores[scored_candidate][0] += \
+					condmat[scored_candidate][other_candidate]/2
 
 	return scores
 
