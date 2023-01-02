@@ -174,10 +174,15 @@ def contingent_vote(election, numcands):
 	plur_results = plurality(election, numcands)
 	return generic_contingent_vote(election, numcands, plur_results)
 
-def comma(election, set_method, base_method, numcands):
+def comma(election, set_method, base_method, numcands, verbose=False):
 	constraint_set = set(set_method(election, numcands))
 	constraint_order = (tuple(constraint_set), tuple(
 		set(range(numcands))-constraint_set))
+	if verbose:
+		print("Engaging comma")
+		print("Set method results:", constraint_set)
+		print("Base method results:", base_method(election, numcands))
+
 	return ballots.break_ties(constraint_order,
 		base_method(election, numcands), numcands)
 
@@ -223,3 +228,114 @@ def smith_contingent(election, numcands):
 def smslash_contingent(election, numcands):
 	return slash(election, ballots.smith, contingent_vote,
 		numcands)
+
+# ------------------------- EXPERIMENTAL -------------------------
+# These may not necessarily work and are very much in flux! Do not
+# depend on them.
+
+def H(x):
+	if x > 0: return 1
+	if x < 0: return 0
+	return 0.5
+
+def heaviside_threecddts(election, numcands):
+	condmat = ballots.condorcet_matrix(election, numcands)
+	plur_scores = plurality_scores(election, numcands)
+
+	scores = [[0] for _ in range(numcands)]
+
+	# Contingent vote for three candidates is
+	# f(A) =    H(fpA - fpC) * H(fpB - fpC) * A>B
+	#        +  H(fpA - fpB) * H(fpC - fpB) * A>C
+
+	# If A and someone else (B) are first by Plurality score,
+	# they have to beat everybody else, hence H(fpA - fpX) *
+	# H(fpB - fpX) to enforce these to be true.
+
+	numvoters = len(election)
+
+	for scored_candidate in range(numcands):
+		fpA = plur_scores[scored_candidate][0]
+
+		for other_member in range(numcands):
+			fpB = plur_scores[other_member][0]
+
+			if scored_candidate == other_member:
+				continue
+			nonmembers = set(range(numcands)) - \
+				set([scored_candidate, other_member])
+
+			heaviside_prod = 1
+			for other in nonmembers:
+				fpC = plur_scores[other][0]
+				heaviside_prod *= H(fpA + fpB - 2 * fpC)
+				#heaviside_prod *= H(fpA - fpC) * H(fpA + fpB - 2 * fpC) * H(fpA + fpC - 2 * (numvoters -fpA - fpB - fpC))
+
+			scores[scored_candidate][0] += heaviside_prod * \
+				condmat[scored_candidate][other_member]
+
+	'''
+	for candidate in range(numcands):
+		for other_cand in range(numcands):
+			if candidate == other_cand: continue
+			third_cand = 0
+			# HACK
+			for t in range(numcands):
+				if t != candidate and t != other_cand:
+					third_cand = t
+
+			fpA = plur_scores[candidate][0]
+			fpB = plur_scores[other_cand][0]
+			fpC = plur_scores[third_cand][0]
+
+			# Does better than Contingent with few voters -- perhaps a
+			# better tiebreak?
+			#scores[candidate][0] += H(fpA - fpC) * H(fpB - fpC) * \
+			#	condmat[candidate][other_cand]
+			scores[candidate][0] += H(fpA - fpC) * H(fpA + fpB - 2 * fpC) * \
+				condmat[candidate][other_cand]
+	'''
+
+	return scores
+
+def heaviside_test(election, numcands):
+	return score_to_ranking(heaviside_threecddts(election, numcands),
+		numcands)
+
+def smslash_htest(election, numcands):
+	return slash(election, ballots.smith, heaviside_test,
+		numcands)
+
+# Experimental method that (seems?) to converge to less than 100% susceptibility
+# on impartial culture with four candidates. It's not clear how to generalize
+# though.
+def exp_majority_gated_score(election, numcands):
+	condmat = ballots.condorcet_matrix(election, numcands)
+	plur_scores = plurality_scores(election, numcands)
+	numvoters = len(election)
+
+	scores = [[0] for _ in range(numcands)]
+
+	for scored_candidate in range(numcands):
+		# If there exists a B so that A and B have a majority of first
+		# preferences, then A's score is A>B. If there are multiple,
+		# A's score is the maximum of these.
+		for other_candidate in range(numcands):
+			if scored_candidate == other_candidate:
+				continue
+
+		combined_fpp = plur_scores[scored_candidate][0] + \
+			plur_scores[other_candidate][0]
+
+		if 2 * combined_fpp > numvoters:
+			scores[scored_candidate][0] += condmat[scored_candidate][other_candidate]
+
+	return scores
+
+def exp_majority_gated(election, numcands):
+	return score_to_ranking(exp_majority_gated_score(
+		election, numcands), numcands)
+
+def smith_exp_majority(election, numcands, verbose=False):
+	return comma(election, ballots.smith, exp_majority_gated,
+		numcands, verbose)
