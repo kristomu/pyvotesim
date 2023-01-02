@@ -92,6 +92,26 @@ def pairwise_ties(condmat, a, b):
 def pairwise_beats_or_ties(condmat, a, b):
 	return condmat[a][b] >= condmat[b][a]
 
+def get_weak_cws(condmat, eligible_candidates):
+	cws = []
+	for cand in eligible_candidates:
+		is_cw = True
+
+		for challenger in eligible_candidates:
+			if cand == challenger: continue
+
+			is_cw = is_cw and pairwise_beats_or_ties(condmat, cand,
+				challenger)
+
+		if is_cw:
+			cws.append(cand)
+
+	if cws != []:
+		return cws
+
+	return None
+
+
 # Given an election, output a dictionary that maps pairs of
 # candidates to a list of all the indices of voters who prefer
 # the former candidate to the latter. This is used for strategy
