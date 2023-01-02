@@ -42,17 +42,23 @@ def two_sided_strategy_ballot(ballot, prior_winner,
 	return rank_top(rank_bottom(ballot, prior_winner),
 		candidate_to_win)
 
-# Attempt a strategy. It returns None if
-# either the candidate to strategize for is already a
-# winner or can't be made to win for, otherwise the
-# election with the winning strategy applied to it.
+# Attempt a strategy given by the modify_ballot method.
+# It returns None if either the candidate to make win is
+# already a winner or the strategy doesn't work, otherwise
+# it returns the modified election where strategy worked.
+
+# TODO? Use logging instead of verbose?
 
 def attempt_particular_strategy(election, numcands,
 		prior_winner, candidate_to_win, method,
-		modify_ballot):
+		modify_ballot, verbose=False):
 	# First get the initial winners.
 	social_order = method(election, numcands)
 	winners = set(social_order[0])
+
+	if verbose:
+		print("The winner set is", winners)
+		print("The social order is", social_order)
 
 	if candidate_to_win in winners or \
 		prior_winner not in winners:
@@ -76,7 +82,12 @@ def attempt_particular_strategy(election, numcands,
 	winners_after = set(social_order_after[0])
 
 	if candidate_to_win in winners_after:
+		if verbose:
+			print("Now the winner is", candidate_to_win)
+			print("The modified election:")
+			print(ballots.str_election(modified_ballots))
 		return modified_ballots
+
 	return None
 
 def attempt_strategy(election, numcands, method,
@@ -114,9 +125,25 @@ def ag_confidence(successes, total, pvalue=0.05):
 	return (max(0, p_tilde - z * correction_factor),
 		min(p_tilde + z * correction_factor, 1))
 
-# This returns a dictionary where the keys are the
+# Check if a particular election admits a particular strategy.
+# The outcomes parameter is a dictionary where the keys are the
 # strategy types and the values are lists where 0 indicates that
 # the strategy didn't work and 1 indicates that it did.
+def update_strat_results(election, method, outcomes, numcands):
+	strategies = (("Compromising", compromise_on_ballot), (
+		"Burial", bury_on_ballot), ("Two-sided", two_sided_strategy_ballot))
+
+	for strategy_name, strat in strategies:
+		if not strategy_name in outcomes:
+			outcomes[strategy_name] = []
+
+		if attempt_strategy(election, numcands,
+			method, strat) is not None:
+			outcomes[strategy_name].append(1)
+		else:
+			outcomes[strategy_name].append(0)
+
+# This returns an outcome dictionary as defined above.
 def do_monte_carlo(election_space, method, iterations):
 	strategies = (("Compromising", compromise_on_ballot), (
 		"Burial", bury_on_ballot), ("Two-sided", two_sided_strategy_ballot))
@@ -133,6 +160,15 @@ def do_monte_carlo(election_space, method, iterations):
 			else:
 				outcomes[strategy_name].append(0)
 
+	return outcomes
+
+# Used to compare results with quadelect - that's why election_str
+# is taken from the console. It returns an outcomes dictionary.
+def get_manipulability(method, numcands):
+
+	outcomes = {}
+	election = ballots.input_election() # Get an election from the console
+	update_strat_results(election, method, outcomes, numcands)
 	return outcomes
 
 def show_simple_monte_carlo(election_space=
@@ -199,14 +235,6 @@ def plot_MC_proportions(
 		("fpA-\nmax fpC", methods.fpA_max_fpC), ("Contingent", methods.contingent_vote),
 		("Smith-\nContingent", methods.smith_contingent)]
 
-	'''
-	# Or this:
-	method_pairs = [("Copeland", methods.copeland), ("Borda", methods.borda),
-		("Plurality", methods.plurality),
-		("Minmax", methods.minmax), ("fpA-\nsum fpC", methods.fpA_sum_fpC),
-		("fpA-\nmax fpC", methods.fpA_max_fpC)]
-	'''
-
 	colors = {"Burial only": "#FF6666", "Compromise only": "#6681FF",
 		"Burial and compromise": "#FF66FF", "Two-sided only": "#4FC54F"}
 
@@ -244,13 +272,10 @@ def plot_MC_proportions(
 	plt.ylabel("Strategy susceptibility")
 	plt.show()
 
-# TODO
-# And then some Monte-Carlo sampling like:
-# 	for each random election,
-#	check if we can compromise away from any of the winners to any of the losers
-#	(or bury, or both, or JGA)
-# show % of time the strategy worked.
+# Maybe TODO?
+
 # Then later:
-# 	exhaustive enumeraion, with probabilities according to the model in question,
+# 	exhaustive enumeration, with probabilities according to the model
+#		in question,
 #   of every election, like in manipulability/fpa_recurs.
 #   VSE?
