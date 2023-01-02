@@ -17,6 +17,11 @@ def str_ballot(ballot):
 	return ">".join(
 		[chr(ord('A')+ cand_number) for cand_number in ballot])
 
+# Reverse the above transformation. Be tolerant of spaces.
+def ballot_from_str(ballot_str):
+	return [ord(p)-ord('A') for p in \
+		ballot_str.replace(" ", "").split(">")]
+
 def str_election(election):
 	# First get the counts per ballot type.
 	counts_per_type = {}
@@ -32,6 +37,28 @@ def str_election(election):
 
 	return out
 
+# NOTE: This *only* supports the "1: A>B>C" format, not the bare "A>B>C"
+# election format. It doesn't care about whitespace.
+def reverse_str_election(str_election):
+	election = []
+	for ballot_group_str in str_election.rstrip("\n").split("\n"):
+		count, ballot = ballot_group_str.split(": ")
+		count = int(count)
+		for _ in range(count):
+			election.append(ballot_from_str(ballot))
+
+	return election
+
+def input_election():
+	str_election = ""
+	# Get the election to test, in string form.
+	input_ballot_line = "!"
+	while input_ballot_line != "":
+		input_ballot_line = input("Enter ballot line or ENTER: ")
+		if input_ballot_line != "":
+			str_election += input_ballot_line + "\n"
+
+	return reverse_str_election(str_election)
 
 # Transforming ballots to auxiliary formats that may be needed
 # for some methods.
